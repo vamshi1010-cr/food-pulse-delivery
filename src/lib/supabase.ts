@@ -1,18 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const DEFAULT_SUPABASE_URL = 'https://ckbslqykywyvmbovzvzz.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNrYnNscXlreXd5dm1ib3Z6dnp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3MzA1NzYsImV4cCI6MjEwNzMwNjU3Nn0.-6rh5Y-eX9pHcMuIQqqPhCMc_dXTvst5z1VyTg3bKbw';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    '[FoodPulse] Supabase env vars not set. Running in offline/mock mode.\n' +
-    'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local to enable the live database.'
-  );
-}
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string) || DEFAULT_SUPABASE_URL;
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || DEFAULT_SUPABASE_ANON_KEY;
 
 export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-anon-key',
+  supabaseUrl,
+  supabaseAnonKey,
   {
     auth: {
       persistSession: true,
@@ -22,9 +18,6 @@ export const supabase = createClient(
   }
 );
 
-/** Returns true if Supabase is configured (env vars present) */
+/** Returns true if Supabase is configured */
 export const isSupabaseConfigured = (): boolean =>
-  Boolean(
-    import.meta.env.VITE_SUPABASE_URL &&
-    import.meta.env.VITE_SUPABASE_ANON_KEY
-  );
+  Boolean(supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('placeholder'));

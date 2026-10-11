@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import type { UserRole, UserSession } from '../../types/auth';
 import { signUp, signIn } from '../../services/authService';
-import { isSupabaseConfigured } from '../../lib/supabase';
 
 interface AuthPortalProps {
   onLoginSuccess: (session: UserSession) => void;
@@ -151,8 +150,6 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onLoginSuccess, onBypass
     }
   };
 
-  const dbConnected = isSupabaseConfigured();
-
   return (
     <div className="min-h-screen bg-[#0d1117] flex items-center justify-center p-4 sm:p-6 font-sans">
       <div className="w-full max-w-4xl space-y-6">
@@ -169,13 +166,12 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onLoginSuccess, onBypass
             Select your account type to access the food delivery platform or the 22CSC21N Software Engineering Studio.
           </p>
           {/* DB Connection Status */}
-          <div className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full border ${
-            dbConnected
-              ? 'text-[#3fb950] bg-[#238636]/10 border-[#238636]/30'
-              : 'text-[#8b949e] bg-[#21262d] border-[#30363d]'
-          }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${dbConnected ? 'bg-[#3fb950]' : 'bg-[#8b949e]'}`} />
-            {dbConnected ? 'Supabase Connected — Accounts are real & persistent' : 'Offline Mode — Demo accounts only (add Supabase to enable real auth)'}
+          <div className="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border border-[#238636]/40 bg-[#238636]/10 text-[#3fb950] shadow-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3fb950] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#3fb950]"></span>
+            </span>
+            <span>Real Database &amp; Auth Active (Supabase) • Accounts &amp; Orders Persisted</span>
           </div>
         </div>
 
