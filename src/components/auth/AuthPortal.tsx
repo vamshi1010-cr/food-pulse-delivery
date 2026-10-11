@@ -7,9 +7,12 @@ import {
   BookOpen, 
   Lock, 
   Mail, 
-  User 
+  User,
+  Loader2
 } from 'lucide-react';
 import type { UserRole, UserSession } from '../../types/auth';
+import { signUp, signIn } from '../../services/authService';
+import { isSupabaseConfigured } from '../../lib/supabase';
 
 interface AuthPortalProps {
   onLoginSuccess: (session: UserSession) => void;
@@ -19,6 +22,7 @@ interface AuthPortalProps {
 export const AuthPortal: React.FC<AuthPortalProps> = ({ onLoginSuccess, onBypassToStudio }) => {
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [mode, setMode] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Customer Form Fields
   const [custName, setCustName] = useState('');
@@ -43,7 +47,7 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onLoginSuccess, onBypass
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Quick Demo Logins
+  // Quick Demo Logins (instant offline — bypasses Supabase)
   const handleQuickDemo = (role: UserRole) => {
     if (role === 'CUSTOMER') {
       onLoginSuccess({
@@ -95,70 +99,59 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onLoginSuccess, onBypass
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
+    if (!selectedRole) { setErrorMsg('Please select a role first.'); return; }
 
-    if (!selectedRole) {
-      setErrorMsg('Please select a role first.');
-      return;
-    }
+    setIsLoading(true);
+    try {
+      let result: { session: UserSession | null; error: string | null };
 
-    if (selectedRole === 'CUSTOMER') {
-      if (mode === 'LOGIN') {
-        if (!custEmail || !custPassword) {
-          setErrorMsg('Please enter both Email/Phone and Password.');
-          return;
+      if (mode === 'SIGNUP') {
+        let email = '';
+        let password = '';
+        let meta: Record<string, string> = {};
+
+        if (selectedRole === 'CUSTOMER') {
+          email = custEmail;
+          password = custPassword;
+          meta = { name: custName, street: custStreet, area: custArea };
+        } else if (selectedRole === 'MERCHANT') {
+          email = merchEmail;
+          password = merchPassword;
+          meta = { name: merchRestName, restaurantName: merchRestName, address: merchAddress, fssaiLicense: merchLicense };
+        } else {
+          email = `${driverName.toLowerCase().replace(/\s/g, '.')}@driver.foodpulse.app`;
+          password = driverPassword;
+          meta = { name: driverName, licenseNumber: driverLicense, vehicleType, vehicleNumber };
         }
+
+        if (!email || !password) { setErrorMsg('Email and password are required.'); return; }
+        result = await signUp(email, password, selectedRole, meta);
+      } else {
+        // LOGIN
+        let email = '';
+        let password = '';
+        if (selectedRole === 'CUSTOMER') { email = custEmail; password = custPassword; }
+        else if (selectedRole === 'MERCHANT') { email = merchEmail; password = merchPassword; }
+        else { email = `${driverName.toLowerCase().replace(/\s/g, '.')}@driver.foodpulse.app`; password = driverPassword; }
+
+        if (!email || !password) { setErrorMsg('Email and password are required.'); return; }
+        result = await signIn(email, password);
       }
-      onLoginSuccess({
-        role: 'CUSTOMER',
-        profile: {
-          id: `cust-${Date.now()}`,
-          name: custName || 'Ananya Sharma',
-          email: custEmail || 'ananya@cbit.ac.in',
-          phone: '+91 98765 43210',
-          defaultAddress: {
-            label: 'Home',
-            street: custStreet || 'Road No 36',
-            area: custArea || 'Jubilee Hills',
-            city: 'Hyderabad',
-            zipCode: '500033'
-          }
-        },
-        token: 'jwt-auth-token-customer'
-      });
-    } else if (selectedRole === 'MERCHANT') {
-      onLoginSuccess({
-        role: 'MERCHANT',
-        profile: {
-          id: `rest-${Date.now()}`,
-          restaurantName: merchRestName || 'Paradise Dum Biryani',
-          ownerName: 'Mirza Ali Khan',
-          email: merchEmail || 'merchant@foodpulse.com',
-          phone: '+91 91234 56789',
-          cuisine: ['Hyderabadi', 'North Indian'],
-          address: merchAddress || 'Hitec City, Hyderabad',
-          fssaiLicense: merchLicense || '13322005000124'
-        },
-        token: 'jwt-auth-token-merchant'
-      });
-    } else if (selectedRole === 'DRIVER') {
-      onLoginSuccess({
-        role: 'DRIVER',
-        profile: {
-          id: `drv-${Date.now()}`,
-          name: driverName || 'Vikram Singh',
-          phone: '+91 98765 43210',
-          licenseNumber: driverLicense || 'TS-09-2022-0049182',
-          vehicleType,
-          vehicleNumber: vehicleNumber || 'TS 09 EZ 4521',
-          rating: 4.9
-        },
-        token: 'jwt-auth-token-driver'
-      });
+
+      if (result.error) {
+        setErrorMsg(result.error);
+      } else if (result.session) {
+        onLoginSuccess(result.session);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
+
+  const dbConnected = isSupabaseConfigured();
 
   return (
     <div className="min-h-screen bg-[#0d1117] flex items-center justify-center p-4 sm:p-6 font-sans">
@@ -175,7 +168,17 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onLoginSuccess, onBypass
           <p className="text-xs text-[#8b949e] max-w-md mx-auto">
             Select your account type to access the food delivery platform or the 22CSC21N Software Engineering Studio.
           </p>
+          {/* DB Connection Status */}
+          <div className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full border ${
+            dbConnected
+              ? 'text-[#3fb950] bg-[#238636]/10 border-[#238636]/30'
+              : 'text-[#8b949e] bg-[#21262d] border-[#30363d]'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${dbConnected ? 'bg-[#3fb950]' : 'bg-[#8b949e]'}`} />
+            {dbConnected ? 'Supabase Connected — Accounts are real & persistent' : 'Offline Mode — Demo accounts only (add Supabase to enable real auth)'}
+          </div>
         </div>
+
 
         {/* STEP 1: ROLE SELECTION GRID */}
         {!selectedRole ? (
@@ -547,9 +550,14 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onLoginSuccess, onBypass
 
               <button
                 type="submit"
-                className="w-full bg-[#f97316] hover:bg-[#ea580c] text-white py-2.5 rounded-lg text-xs font-medium transition"
+                disabled={isLoading}
+                className="w-full bg-[#f97316] hover:bg-[#ea580c] disabled:opacity-60 text-white py-2.5 rounded-lg text-xs font-medium transition flex items-center justify-center gap-2"
               >
-                {mode === 'LOGIN' ? `Login to ${selectedRole} Account` : `Complete ${selectedRole} Registration`}
+                {isLoading ? (
+                  <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Authenticating...</>
+                ) : (
+                  mode === 'LOGIN' ? `Login to ${selectedRole} Account` : `Complete ${selectedRole} Registration`
+                )}
               </button>
             </form>
           </div>

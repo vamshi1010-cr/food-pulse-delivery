@@ -28,6 +28,8 @@ import type {
 } from './types/food';
 
 import type { UserSession } from './types/auth';
+import { restoreSession, signOut } from './services/authService';
+import { placeOrder as dbPlaceOrder } from './services/orderService';
 
 export function App() {
   // Theme state: dark | light with persistence
@@ -49,30 +51,31 @@ export function App() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // Auth Session State
-  const [session, setSession] = useState<UserSession | null>(() => {
-    const saved = localStorage.getItem('foodpulse_session');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { return null; }
-    }
-    return null;
-  });
+  // Auth Session State — restored from Supabase on mount
+  const [session, setSession] = useState<UserSession | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
 
   useEffect(() => {
-    if (session) {
-      localStorage.setItem('foodpulse_session', JSON.stringify(session));
-    } else {
-      localStorage.removeItem('foodpulse_session');
-    }
-  }, [session]);
+    restoreSession().then((restored) => {
+      if (restored) {
+        setSession(restored);
+        setActiveView(restored.role === 'MERCHANT' ? 'MERCHANT' : restored.role === 'DRIVER' ? 'DRIVER' : 'CUSTOMER');
+      }
+      setSessionLoading(false);
+    });
+  }, []);
 
   const handleLoginSuccess = (newSession: UserSession) => {
     setSession(newSession);
-    setActiveView(newSession.role);
+    setActiveView(newSession.role === 'MERCHANT' ? 'MERCHANT' : newSession.role === 'DRIVER' ? 'DRIVER' : 'CUSTOMER');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     setSession(null);
+    setOrders([]);
+    setCartItems([]);
+    setTrackedOrder(null);
   };
 
   // Navigation & View State
@@ -206,8 +209,8 @@ export function App() {
     setCartItems([]);
   };
 
-  // Place Order Handler
-  const handlePlaceOrder = (orderData: {
+  // Place Order Handler — persists to Supabase if configured, falls back to local mock
+  const handlePlaceOrder = async (orderData: {
     items: CartItem[];
     subtotal: number;
     deliveryFee: number;
@@ -219,31 +222,28 @@ export function App() {
     deliveryAddress: UserAddress;
     paymentMethod: 'UPI' | 'CREDIT_CARD' | 'COD' | 'WALLET';
   }) => {
-    const newOrder: Order = {
-      id: `ord-${Math.floor(100000 + Math.random() * 900000)}`,
-      restaurantId: orderData.items[0]?.menuItem.category || 'rest-1',
-      restaurantName: 'Paradise Dum Biryani & Kebabs',
-      restaurantAddress: 'Hitec City, Hyderabad',
-      restaurantCoords: { lat: 17.4483, lng: 78.3808 },
-      items: orderData.items,
-      subtotal: orderData.subtotal,
-      deliveryFee: orderData.deliveryFee,
-      platformFee: orderData.platformFee,
-      tax: orderData.tax,
-      discount: orderData.discount,
-      appliedCoupon: orderData.appliedCoupon,
-      totalAmount: orderData.totalAmount,
-      deliveryAddress: orderData.deliveryAddress,
-      status: 'PLACED',
-      driver: DEFAULT_DRIVER,
-      createdAt: 'Just now',
-      estimatedDeliveryTime: '25 mins',
-      paymentMethod: orderData.paymentMethod
-    };
+    const customerId = session?.profile?.id || 'guest';
+    const { order: newOrder } = await dbPlaceOrder(
+      customerId,
+      orderData.items,
+      {
+        subtotal: orderData.subtotal,
+        deliveryFee: orderData.deliveryFee,
+        platformFee: orderData.platformFee,
+        tax: orderData.tax,
+        discount: orderData.discount,
+        appliedCoupon: orderData.appliedCoupon,
+        totalAmount: orderData.totalAmount,
+        paymentMethod: orderData.paymentMethod,
+      },
+      orderData.deliveryAddress
+    );
 
-    setOrders((prev) => [newOrder, ...prev]);
-    setCartItems([]);
-    setTrackedOrder(newOrder);
+    if (newOrder) {
+      setOrders((prev) => [newOrder, ...prev]);
+      setCartItems([]);
+      setTrackedOrder(newOrder);
+    }
   };
 
   // Order Status Updater
@@ -270,6 +270,20 @@ export function App() {
 
   // Active customer orders
   const activeCustomerOrders = orders.filter((o) => o.status !== 'DELIVERED' && o.status !== 'CANCELLED');
+
+  // Loading state during session restore
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="w-10 h-10 bg-[#f97316] rounded-xl flex items-center justify-center mx-auto animate-pulse">
+            <span className="text-white text-lg">🍽️</span>
+          </div>
+          <p className="text-xs text-[#8b949e] font-medium">Loading FoodPulse...</p>
+        </div>
+      </div>
+    );
+  }
 
   // If user is not authenticated and is not explicitly viewing SE Studio, show AuthPortal
   if (!session && activeView !== 'SE_STUDIO') {
