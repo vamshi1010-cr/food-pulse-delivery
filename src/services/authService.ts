@@ -56,7 +56,15 @@ export async function signIn(
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { session: null, error: error.message };
+  if (error) {
+    if (error.message.toLowerCase().includes('email not confirmed')) {
+      return { 
+        session: null, 
+        error: 'Email confirmation required. Please check your inbox or turn off "Confirm email" in Supabase Dashboard (Authentication -> Providers -> Email) to allow instant login.' 
+      };
+    }
+    return { session: null, error: error.message };
+  }
   if (!data.user) return { session: null, error: 'Login failed. Please try again.' };
 
   // Fetch profile
