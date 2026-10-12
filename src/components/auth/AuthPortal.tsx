@@ -156,16 +156,16 @@ export const AuthPortal: React.FC<AuthPortalProps> = ({ onLoginSuccess, onBypass
         
         {/* Header Branding */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#f97316] text-white shadow-md">
-            <UtensilsCrossed className="w-6 h-6" />
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[#f97316] text-white shadow-lg mb-1">
+            <UtensilsCrossed className="w-7 h-7" />
           </div>
-          <div>
-            <span className="text-xs sm:text-sm font-semibold tracking-widest text-[#f97316] uppercase block mb-1">
+          <div className="space-y-1.5">
+            <h1 className="text-3xl sm:text-5xl font-semibold text-[#f0f6fc] tracking-tight uppercase">
               Online Food Delivery System
-            </span>
-            <h1 className="text-2xl sm:text-4xl font-medium text-[#f0f6fc] tracking-tight">
-              FoodPulse Authentication Portal
             </h1>
+            <p className="text-base sm:text-xl font-medium text-[#f97316]">
+              FoodPulse Authentication Portal
+            </p>
           </div>
           <p className="text-xs sm:text-sm text-[#8b949e] max-w-lg mx-auto">
             Select your account type to access the food delivery platform or the 22CSC21N Software Engineering Studio.
